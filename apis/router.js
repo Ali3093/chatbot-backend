@@ -28,15 +28,18 @@ router.post('/',async(req,res) => {
      agent.add('Your IBAN is : '+obj.IBAN + ' and BIC is : '+obj.BIC);
     }
     //-------------------------function to fetch Beneficiary-------------------------------------------------------------
-    async function getBeneficiary(agent)
+    async function getBeneficiary(agent) 
     {
       const Qsnapshot = await cs.where('Email ID','==',email).get();
       const getList = Qsnapshot.docs.map((doc) => ({id:doc.id,...doc.data()}));
       var bn = 
       {
-        "BENEFICIARY" : getList[0].Beneficiary
+        "BENEFICIARY 1" : getList[0]['Beneficiary-1'],
+        "BENEFICIARY 2" : getList[0]['Beneficiary-2'] ,
+        "BENEFICIARY 3" : getList[0]['Beneficiary-3']
+
       }
-      agent.add('Your Beneficiary is : '+bn.BENEFICIARY);
+      agent.add('Your Beneficiaries are : '+bn['BENEFICIARY 1']+', '+bn['BENEFICIARY 2']+' and '+bn['BENEFICIARY 3']);
     }
     //-------------------------function to fetch latest Balance-----------------------------------------------------------
     async function getBalance(agent)
@@ -46,14 +49,22 @@ router.post('/',async(req,res) => {
       var acc = str.substr(0,7);
       console.log(acc);
       const Qsnapshot = await ts.where('Email ID','==',email).where('Account Type','==',acc).orderBy('Date','desc').get();
-      const getList = Qsnapshot.docs.map((doc) => ({id:doc.id,...doc.data()}));
-      console.log(getList);
 
-      var bal = 
+      if(Qsnapshot.empty)
       {
-        "BALANCE" : getList[0]['Current Balance']
-      } ;
-      agent.add('Your Current Balance is : '+bal.BALANCE);
+        agent.add('You do not have a ' +acc+ ' account');
+      }
+       else
+       {
+        const getList = Qsnapshot.docs.map((doc) => ({id:doc.id,...doc.data()}));
+        console.log(getList);  
+        let bal = 
+        {
+          "BALANCE" : getList[0]['Current Balance']
+        } ;
+        agent.add('Your Current Balance is : '+bal.BALANCE);
+      }
+      
     }
     //-------------function to fetch total Earnings(credit)for any month/day(including current)--------------------------------------------------------------
     async function getTotalEarnings(agent)
@@ -65,14 +76,21 @@ router.post('/',async(req,res) => {
       let start = new Date(d1);
       let end = new Date(d2);
       let total = 0;
-      const Qsnapshot = await ts.where('Email ID','==', email).where('Account Type','==',acc).where('Date','>',start).where('Date','<=',end).get();
+      const Qsnapshot = await ts.where('Email ID','==',email).where('Account Type','==',acc).where('Transfer type','==','credit').where('Date','>',start).where('Date','<=',end).get();
+      if(Qsnapshot.empty)
+      {
+        agent.add('You do not have any earnings for this month');
+      }
+      else{
       const getList = Qsnapshot.docs.map((doc) => ({id:doc.id,...doc.data()}));
       for( let i=0;i<getList.length;i++)
       {
-       total += getList[i].credit;
+       total += getList[i].Amount;
       }
       agent.add('Your Total Earnings for the given period is : '+total);
+    
     }
+  }
     //----------------function to fetch total Expenditure(debit)for any month/day(including current)------------------------------------------------------------
     async function getTotalExpenses(agent)
     {
@@ -85,50 +103,58 @@ router.post('/',async(req,res) => {
       var r1 = agent.parameters.name;
       let rec = new String(r1);
       var total = 0;
-      const Qsnapshot = await ts.where('Email ID','==', email).where('Account Type','==',acc).where('Date','>',start).where('Date','<=',end).get();
+      const Qsnapshot = await ts.where('Email ID','==',email).where('Account Type','==',acc).where('Transfer type','==','debit').where('Date','>',start).where('Date','<=',end).get();
+      if(Qsnapshot.empty)
+      {
+        agent.add('You do not have any expenses for this month');
+      }
+      else{
       const getList = Qsnapshot.docs.map((doc) => ({id:doc.id,...doc.data()}));
       console.log(getList);
       for( let i=0;i<getList.length;i++)
       {
-        if(getList[i].receiver.split(" ")[0] == rec && rec != null)
+        if(getList[i].Merchant.split(" ")[0] == rec && rec != null)
         {
-          total += getList[i].debit;
+          total += getList[i].Amount;
+          //agent.add('You paid : '+total+ ' to '+getList[i].Merchant);
     
         }
-        else if(rec == '')
+        else 
         {
-           total += getList[i].debit;
-        }
-        else
-        {
-           total;
+           total += getList[i].Amount;
         }
 
         console.log(total); 
       }
 
-      agent.add('Your Total Expenditure is : '+total);
+      agent.add('You spent : '+total);
     }
+  }
    //---------------function to fetch mini statement-------------------------------------------------------------------
     async function getMiniStatement(agent)
     {
       let str = agent.parameters.account; 
       var acc = str.substr(0,7);
       const Qsnapshot = await ts.where('Email ID','==',email).where('Account Type','==',acc).orderBy('Date','desc').limit(5).get();
+      if(Qsnapshot.empty)
+      {
+        agent.add('You do not have any past transactions for this month');
+      }
+      else{
       const getList = Qsnapshot.docs.map((doc) => (doc.data()));
         let newArr = getList.map(function(element){
           return ('DATE : ' + (new  Date(Number(element.Date))) + ' ' + //as other timestamp to date conversions did not work
           'TRANSACTION ID : ' + element['Transaction ID'] + ' ' +
-          'DEBIT : ' + element.debit + ' ' +
-          'RECEIVER : ' + element.receiver + ' ' +
-          'CREDIT : ' + element.credit + ' ' +
-          'SENDER : ' + element.Sender + ' ' +
+          'TRANSFER TYPE : ' + element['Transfer type'] + ' ' +
+          'MERCHANT : ' + element.Merchant + ' ' +
+          'AMOUNT : ' + element.Amount + ' ' +
           'CURRENT BALANCE : ' + element['Current Balance'] +'\r\n') ;
         });
         console.log(newArr);
         agent.add('Here is your last 5 transaction summary :' +newArr);
       //})  
     }
+  }
     //======================================functions for PUT/POST requests==============================================
     //----------------------function for changing passwords (PUT)------------------------------------------------------
     // async function updatePassword(agent)
@@ -163,12 +189,12 @@ router.post('/',async(req,res) => {
     async function updateAddress(agent)
     {
       let ad1 = agent.parameters.address;
-      await cs.where('Email ID','==',email).get()
+      await cs.where('Email ID','==','arpaul@gmail.com').get()
       .then(Qsnapshots => {
        if (Qsnapshots.size > 0) {
         Qsnapshots.forEach(cust => {
         cs.doc(cust.id).update({ 'Address': ad1 })
-        agent.add('Your Address was updated successfully !');
+        agent.add('Your Address was updated successfully to ');
         })
     }
     })
