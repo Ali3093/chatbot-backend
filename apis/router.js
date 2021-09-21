@@ -143,7 +143,7 @@ router.post('/',async(req,res) => {
       else{
       const getList = Qsnapshot.docs.map((doc) => (doc.data()));
         let newArr = getList.map(function(element){
-          return ('DATE : ' + (new  Date(Number(element.Date))) + ' ' + //as other timestamp to date conversions did not work
+          return ('DATE : ' + (new  Date(element.Date.seconds * 1000 + element.Date.nanoseconds / 1000000 ).toDateString())+' ' +(new  Date(element.Date * 1000).toLocaleTimeString()) + ' ' + //as other timestamp to date conversions did not work
           'TRANSACTION ID : ' + element['Transaction ID'] + ' ' +
           'TRANSFER TYPE : ' + element['Transfer type'] + ' ' +
           'MERCHANT : ' + element.Merchant + ' ' +
