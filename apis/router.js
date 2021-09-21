@@ -148,7 +148,7 @@ router.post('/',async(req,res) => {
           'TRANSFER TYPE : ' + element['Transfer type'] + ' ' +
           'MERCHANT : ' + element.Merchant + ' ' +
           'AMOUNT : ' + element.Amount + ' ' +
-          'CURRENT BALANCE : ' + element['Current Balance'] +'\r\n') ;
+          'BALANCE : ' + element['Current Balance'] +'\r\n') ;
         });
         console.log(newArr);
         agent.add('Here is your last 5 transaction summary :' +newArr);
